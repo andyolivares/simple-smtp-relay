@@ -94,14 +94,15 @@ impl SmtpServer {
     }
 
     fn handle_line(&mut self, line: &str) -> Result<&[u8]> {
-        let arr: Vec<&str> = line.split(|c| char::is_whitespace(c) || c == ':')
+        let arr: Vec<&str> = line
+            .split(|c| char::is_whitespace(c) || c == ':')
             .filter(|s| !s.is_empty())
             .collect();
 
-        let command = arr.get(0).unwrap_or(&"").to_string();
+        let command = arr.get(0).unwrap_or(&SmtpServer::EMPTY_STR).to_string();
         let state = self.state.clone();
 
-        match (command.as_str(), state) {
+        match (command.to_lowercase().as_str(), state) {
             ("helo", SmtpState::Fresh) => {
                 debug!("Got HELO");
                 self.state = SmtpState::Greeted;
