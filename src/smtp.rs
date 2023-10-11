@@ -171,7 +171,7 @@ impl SmtpServer {
                 debug!("Data end");
                 self.fire_callback();
 
-                Ok(SmtpServer::EMPTY)
+                Ok(SmtpServer::OK)
             },
             ("quit", SmtpState::Data) => {
                 debug!("Got QUIT");
