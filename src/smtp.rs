@@ -6,6 +6,13 @@ use std::io::{BufReader, BufRead, BufWriter, Write};
 use anyhow::Result;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SmtpMail {
+    pub to: Vec<String>,
+    pub from: String,
+    pub data: String
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum SmtpState {
     Fresh,
     Greeted,
@@ -13,16 +20,14 @@ enum SmtpState {
     Data
 }
 
-pub type NewMailCallback = dyn Fn(String, Vec<String>, Vec<String>);
+pub type NewMailCallback = dyn Fn(SmtpMail);
 
 pub struct SmtpServer {
     state: SmtpState,
     ehlo_greeting: String,
     stream: TcpStream,
     callback: Box<NewMailCallback>,
-    to: Vec<String>,
-    from: String,
-    data: Vec<String>
+    mail: SmtpMail
 }
 
 impl SmtpServer {
@@ -43,9 +48,11 @@ impl SmtpServer {
             ehlo_greeting,
             stream,
             callback,
-            to: Vec::new(),
-            from: String::new(),
-            data: Vec::new()
+            mail: SmtpMail {
+                to: Vec::new(),
+                from: String::new(),
+                data: String::new()
+            }
         }
     }
 
@@ -138,7 +145,7 @@ impl SmtpServer {
                 } else {
                     debug!("Mail from: {}", mail);
 
-                    self.from = mail.to_string();
+                    self.mail.from = mail.to_string();
                     self.state = SmtpState::Rcpt;
 
                     Ok(SmtpServer::OK)
@@ -156,7 +163,7 @@ impl SmtpServer {
                 } else {
                     debug!("Mail to: {}", mail);
 
-                    self.to.push(mail);
+                    self.mail.to.push(mail);
 
                     Ok(SmtpServer::OK)
                 }
@@ -181,7 +188,8 @@ impl SmtpServer {
             },
             (_, SmtpState::Data) => {
                 debug!("Received data line");
-                self.data.push(line.to_string());
+
+                self.mail.data += line;
 
                 Ok(SmtpServer::EMPTY)
             },            
@@ -201,17 +209,17 @@ impl SmtpServer {
     fn clear(&mut self) {
         self.state = SmtpState::Fresh;
         
-        self.to = Vec::new();
-        self.from = String::new();
-        self.data = Vec::new();
+        self.mail = SmtpMail {
+            to: Vec::new(),
+            from: String::new(),
+            data: String::new()
+        };
     }
 
     fn fire_callback(&mut self) {
-        //info!("Received mail FROM: {} TO: {}", self.from, self.to.join(","));
-
         let cb = self.callback.as_mut();
 
-        cb(self.from.clone(), self.to.clone(), self.data.clone());
+        cb(self.mail.clone());
 
         self.clear();
     }
