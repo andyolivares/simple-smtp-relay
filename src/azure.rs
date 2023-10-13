@@ -77,11 +77,15 @@ impl AzureMailClient {
     }
 
     pub fn send_mail(&self, body: &AzureMailMessage) {
-        let url = Url::parse(self.endpoint.as_str()).unwrap();
+        let mut url = Url::parse(self.endpoint.as_str()).unwrap();
+
+        url.set_query(Option::Some("api-version=2023-03-31"));
+
         let path_and_query = &url[Position::BeforePath..];
         let host = url.host_str().unwrap();
         let body = serde_json::to_string(body).unwrap();
 
+        info!("URL: {}", url);
         info!("Content: {}", body);
 
         let e = GeneralPurpose::new(&alphabet::STANDARD, GeneralPurposeConfig::new());
@@ -98,7 +102,7 @@ impl AzureMailClient {
 
         let client = Client::new();
         let res = client
-            .post(&self.endpoint)
+            .post(url.to_string())
             .header("Authorization", auth)
             .header("x-ms-date", &date)
             .header("x-ms-content-sha256", content_hash)
