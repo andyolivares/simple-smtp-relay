@@ -1,12 +1,16 @@
 pub mod smtp;
+pub mod azure;
+pub mod mail;
 
 use log::info;
+use azure::AzureMailClient;
+use mail::AzureMailConverter;
 use anyhow::Result;
 use smtp::SmtpServer;
-use std::io::Write;
 use std::{env::args, net::TcpListener};
-use std::fs::File;
-use uuid::Uuid;
+
+const ENDPOINT: &str = "ACS_ENDPOINT";
+const ACCESS_KEY: &str = "ACS_ACCESS_KEY";
 
 fn main() -> Result<()>
 {
@@ -20,6 +24,8 @@ fn main() -> Result<()>
         .nth(2)
         .unwrap_or("smtp.domain.com".to_string());
 
+    let endpoint = std::env::var(ENDPOINT).unwrap_or("".to_string());
+    let access_key = std::env::var(ACCESS_KEY).unwrap_or("".to_string());
     let listener = TcpListener::bind(addr)?;
 
     info!("Simple SMTP Relay for {domain} listening at {}", listener.local_addr().unwrap());
@@ -28,19 +34,19 @@ fn main() -> Result<()>
     {
         let (stream, addr) = listener.accept()?;
         let domain = domain.clone();
+        let endpoint = endpoint.clone();
+        let access_key = access_key.clone();
 
         info!("Accepted connection from {addr}");
 
         std::thread::spawn(move || {
-            let mut smtp = SmtpServer::new(domain, stream, Box::new(move |from, to, data| {
-                info!("Received mail FROM: {} TO: {}", from, to.join(","));
+            let mut smtp = SmtpServer::new(domain, stream, Box::new(move |mail| {
+                info!("Received mail FROM: {} TO: {}", mail.from, mail.to.join(","));
 
-                let name = format!("{}.mail", Uuid::new_v4().to_string());
-                let mut file = File::create(name).unwrap();
+                let msg = AzureMailConverter::from_mime(mail.from, mail.to, &mail.data);
+                let client = AzureMailClient::new(&endpoint, &access_key);
 
-                write!(file, "FROM: {}\r\n", from).unwrap();
-                write!(file, "TO: {}\r\n", to.join(",")).unwrap();
-                write!(file, "\r\n{}", data.join("")).unwrap();
+                client.send_mail(&msg);
             }));
 
             smtp.start()

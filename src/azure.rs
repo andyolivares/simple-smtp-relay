@@ -8,14 +8,14 @@ use hmac_sha256::{Hash, HMAC};
 use chrono::Utc;
 use reqwest::blocking::Client;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct AzureMailAddress {
     pub address: String,
     #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct AzureMailRecipients {
     pub to: Vec<AzureMailAddress>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -24,15 +24,16 @@ pub struct AzureMailRecipients {
     pub bcc: Option<Vec<AzureMailAddress>>
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct AzureMailContent {
     pub subject: String,
     #[serde(rename = "plainText", skip_serializing_if = "Option::is_none")]
     pub plain_text: Option<String>,
-    pub html: String
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct AzureMailMessage {
     #[serde(rename = "senderAddress")]
     pub sender_address: String,
