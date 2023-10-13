@@ -23,8 +23,8 @@ impl AzureMailConverter {
         };
 
         let subject = headers.get("Subject").unwrap_or(&String::from("")).to_string();
-        let html = AzureMailConverter::get_content(&mail, "text/html".to_string());
-        let plain_text = AzureMailConverter::get_content(&mail, "text/plain".to_string());
+        let html = AzureMailConverter::get_content(&mail, &"text/html".to_string());
+        let plain_text = AzureMailConverter::get_content(&mail, &"text/plain".to_string());
 
         trace!("HTML: {}", html);
         trace!("Plain Text: {}", plain_text);
@@ -57,17 +57,19 @@ impl AzureMailConverter {
 
     }
 
-    fn get_content(mail: &ParsedMail, mimetype: String) -> String {
+    fn get_content(mail: &ParsedMail, mimetype: &String) -> String {
         let body = mail.get_body().unwrap_or("".to_string());
 
-        if mail.ctype.mimetype == mimetype && body.len() != 0 {
+        if mail.ctype.mimetype.eq(mimetype) && body.len() != 0 {
             return body;
         } else {
-            for pm in mail.parts() {
-                let body = AzureMailConverter::get_content(pm, mimetype.clone());
+            if mail.subparts.len() > 0 {
+                for pm in mail.subparts.iter() {
+                    let body = AzureMailConverter::get_content(pm, mimetype);
 
-                if body.len() != 0 {
-                    return body;
+                    if body.len() != 0 {
+                        return body;
+                    }
                 }
             }
         }
