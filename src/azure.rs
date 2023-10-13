@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use log::{debug, info};
+use log::{trace, debug, info};
 use url::{Url, Position};
 use serde::Serialize;
 use base64::{Engine, alphabet};
@@ -85,6 +85,9 @@ impl AzureMailClient {
         let path_and_query = &url[Position::BeforePath..];
         let host = url.host_str().unwrap();
         let body = serde_json::to_string(body).unwrap();
+
+        trace!("URL: {}", url);
+        trace!("Content: {}", body);
 
         let e = GeneralPurpose::new(&alphabet::STANDARD, GeneralPurposeConfig::new());
         let mut hash = Hash::new();

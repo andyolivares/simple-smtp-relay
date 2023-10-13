@@ -1,6 +1,7 @@
 use crate::azure::{AzureMailMessage, AzureMailRecipients, AzureMailAddress, AzureMailContent};
 use std::collections::HashMap;
 use mailparse::parse_mail;
+use log::trace;
 
 pub struct AzureMailConverter {}
 
@@ -9,6 +10,8 @@ impl AzureMailConverter {
     pub fn from_mime(sender_address: String, to: Vec<String>, data: &String) -> AzureMailMessage {
 
         let mail = parse_mail(data.as_bytes()).unwrap();
+
+        trace!("Parsed mail: {:#?}", mail);
 
         let headers: HashMap<String, String> = mail.headers
             .iter()
@@ -29,13 +32,17 @@ impl AzureMailConverter {
             _ => AzureMailContent { subject, plain_text: Option::Some(format!("Unsupported Content Type\r\n\r\n{}", body)), html: Option::None }
         };
 
-        AzureMailMessage {
+        let msg = AzureMailMessage {
             sender_address,
             reply_to: Option::None,
             headers: Option::Some(headers),
             recipients,
             content
-        }
+        };
+
+        trace!("Mail message: {:#?}", msg);
+
+        msg
 
     }
 
