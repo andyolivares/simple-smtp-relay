@@ -86,9 +86,6 @@ impl AzureMailClient {
         let host = url.host_str().unwrap();
         let body = serde_json::to_string(body).unwrap();
 
-        info!("URL: {}", url);
-        info!("Content: {}", body);
-
         let e = GeneralPurpose::new(&alphabet::STANDARD, GeneralPurposeConfig::new());
         let mut hash = Hash::new();
         
