@@ -101,7 +101,9 @@ impl AzureMailClient {
         };
 
         trace!("URL: {}", url);
-        trace!("Content: {}", body);
+        trace!("Host: {}", host);
+        trace!("Path & Query: {}", path_and_query);
+        trace!("Body: {}", body);
         trace!("Endpoint: {}", self.endpoint);
         trace!("Access Key: {}", self.access_key);
 

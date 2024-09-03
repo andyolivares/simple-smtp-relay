@@ -16,6 +16,8 @@ Options:
   -V, --version                      Print version
 ```
 
+*WARNING:* Setting the log level to `trace` could reveal sensitive information. Never set to `trace` in production.
+
 # Installation
 
 You need to install a Rust toolchain with `cargo`. Please refer to [Install Rust](https://www.rust-lang.org/tools/install) for up-to-date instructions for your platform.
