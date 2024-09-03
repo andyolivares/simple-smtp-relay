@@ -86,6 +86,7 @@ impl AzureMailClient {
             Err(e) => return Err(Error::msg(e.to_string()))
         };
 
+        url.set_path("emails:send");
         url.set_query(Option::Some("api-version=2023-03-31"));
 
         let path_and_query = &url[Position::BeforePath..];
