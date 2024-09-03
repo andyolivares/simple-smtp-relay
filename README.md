@@ -31,7 +31,7 @@ Options:
   -V, --version                      Print version
 ```
 
-*WARNING:* Setting the log level to `trace` could reveal sensitive information. Never set to `trace` in production.
+**WARNING:** Setting the log level to `trace` could reveal sensitive information. Never set to `trace` in production.
 
 ## Configure as `systemd` Daemon
 
