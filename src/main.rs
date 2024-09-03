@@ -2,55 +2,107 @@ pub mod smtp;
 pub mod azure;
 pub mod mail;
 
-use log::info;
+use clap::{command, Parser};
+use log::{error, info};
 use azure::AzureMailClient;
-use mail::AzureMailConverter;
 use anyhow::Result;
 use smtp::SmtpServer;
-use std::{env::args, net::TcpListener};
+use std::net::TcpListener;
 
-const ENDPOINT: &str = "ACS_ENDPOINT";
-const ACCESS_KEY: &str = "ACS_ACCESS_KEY";
+/// Listens for SMTP clients, reads e-mails and then delivers them using Azure Communication Services
+#[derive(Debug, Parser)]
+#[command(version, author = "Andres Olivares")]
+struct Args {
+    /// Address to bind to (defaults to 127.0.0.1:25)
+    #[arg(long, short = 'a', value_name = "IP:PORT")]
+    address: Option<String>,
+
+    /// Domain name (defaults to smtp.domain.com)
+    #[arg(long, short = 'd', value_name = "DOMAIN")]
+    domain: Option<String>,
+
+    /// ACS Endpoint (eg. https://<my_acs_account>.unitedstates.communication.azure.com)
+    #[arg(long, short = 'e', value_name = "ACS_ENDPOINT")]
+    endpoint: String,
+
+    /// ACS Access Key
+    #[arg(long, short = 'k', value_name = "ACS_ACCESS_KEY")]
+    access_key: String,
+
+    /// Log level (eg. trace, debug, info, warn, error)
+    #[arg(long, short = 'l', value_name = "LOG_LEVEL")]
+    log_level: Option<String>
+}
 
 fn main() -> Result<()>
 {
-    pretty_env_logger::init();
+    let args = Args::parse();
 
-    let addr = args()
-        .nth(1)
-        .unwrap_or("127.0.0.1:25".to_string());
+    let addr = match args.address {
+        Some(a) => a,
+        None => "127.0.0.1:25".to_string()
+    };
 
-    let domain = args()
-        .nth(2)
-        .unwrap_or("smtp.domain.com".to_string());
+    let domain = match args.domain {
+        Some(d) => d,
+        None => "smtp.domain.com".to_string()
+    };
 
-    let endpoint = std::env::var(ENDPOINT).unwrap_or("".to_string());
-    let access_key = std::env::var(ACCESS_KEY).unwrap_or("".to_string());
+    let log_level = match args.log_level {
+        Some(ll) => ll,
+        None => "info".to_string()
+    };
+
+    let mut builder = pretty_env_logger::formatted_builder();
+    
+    builder.parse_filters(&log_level);
+    builder.init();
+
     let listener = TcpListener::bind(addr)?;
 
-    info!("Simple SMTP Relay for {domain} listening at {}", listener.local_addr().unwrap());
+    info!("Simple SMTP Relay for {domain} listening on {}", listener.local_addr().unwrap());
 
     loop
     {
-        let (stream, addr) = listener.accept()?;
+        let (stream, addr) = listener.accept()?;        
+        
         let domain = domain.clone();
-        let endpoint = endpoint.clone();
-        let access_key = access_key.clone();
+        let endpoint = args.endpoint.clone();
+        let access_key = args.access_key.clone();
 
         info!("Accepted connection from {addr}");
 
         std::thread::spawn(move || {
-            let mut smtp = SmtpServer::new(domain, stream, Box::new(move |mail| {
-                info!("Received mail FROM: {} TO: {}", mail.from, mail.to.join(","));
+            let mut smtp = SmtpServer::new(&domain, &stream, Box::new(move |mail| {
+                let from = match &mail.from {
+                    Some(f) => f,
+                    None => {
+                        error!("Received mail with no FROM address");
+                        return;
+                    }
+                };
 
-                let msg = AzureMailConverter::from_mime(mail.from, mail.to, &mail.data);
+                let data = match &mail.data {
+                    Some(d) => d,
+                    None => {
+                        error!("Received mail with no data");
+                        return;
+                    }
+                };
+
+                info!("Received mail FROM: {} TO: {}", from, mail.to.join(","));
+
+                let msg = mail::from_mime(from.clone(), &mail.to, &data);
                 let client = AzureMailClient::new(&endpoint, &access_key);
 
-                client.send_mail(&msg);
+                if let Err(e) = client.send_mail(&msg) {
+                    error!("Error sending mail: {}", e);
+                }
             }));
 
-            smtp.start()
-                .unwrap_or_default();
+            if let Err(e) = smtp.start() {
+                error!("Error starting SMTP server: {}", e);
+            }
         });
     }
 }

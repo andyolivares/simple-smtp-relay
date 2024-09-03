@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use log::{trace, debug, info};
-use url::{Url, Position};
+use anyhow::{Error, Result};
+use log::{debug, error, info, trace};
+use url::{Position, Url};
 use serde::Serialize;
 use base64::{Engine, alphabet};
 use base64::engine::{GeneralPurpose, GeneralPurposeConfig};
@@ -53,7 +54,7 @@ impl AzureMailAddress {
         }
     }
 
-    pub fn new_with_display_name(address: String, display_name: String) -> Self {
+    pub fn with_display_name(address: String, display_name: String) -> Self {
         Self {
             address,
             display_name: Option::Some(display_name)
@@ -61,6 +62,7 @@ impl AzureMailAddress {
     }
 }
 
+#[derive(Serialize, Debug)]
 pub struct AzureMailClient {
     endpoint: String,
     access_key: String
@@ -68,23 +70,34 @@ pub struct AzureMailClient {
 
 impl AzureMailClient {
 
-    const RFC1123: &str = "%a, %d %b %Y %H:%M:%S GMT";
+    const RFC1123: &'static str = "%a, %d %b %Y %H:%M:%S GMT";
     
-    pub fn new(endpoint: &String, access_key: &String) -> Self {
+    pub fn new(endpoint: &str, access_key: &str) -> Self {
         Self {
-            endpoint: endpoint.clone(),
-            access_key: access_key.clone()
+            endpoint: endpoint.to_string(),
+            access_key: access_key.to_string()
         }
     }
 
-    pub fn send_mail(&self, body: &AzureMailMessage) {
-        let mut url = Url::parse(self.endpoint.as_str()).unwrap();
+    pub fn send_mail(&self, body: &AzureMailMessage) -> Result<()> {
+        let mut url = match Url::parse(self.endpoint.as_str()) {
+            Ok(u) => u,
+            Err(e) => return Err(Error::msg(e.to_string()))
+        };
 
         url.set_query(Option::Some("api-version=2023-03-31"));
 
         let path_and_query = &url[Position::BeforePath..];
-        let host = url.host_str().unwrap();
-        let body = serde_json::to_string(body).unwrap();
+        
+        let host = match url.host_str() {
+            Some(h) => h,
+            None => return Err(Error::msg("Unable to parse host"))
+        };
+
+        let body = match serde_json::to_string(body) {
+            Ok(b) => b,
+            Err(e) => return Err(Error::msg(e.to_string()))
+        };
 
         trace!("URL: {}", url);
         trace!("Content: {}", body);
@@ -96,8 +109,11 @@ impl AzureMailClient {
 
         let content_hash = e.encode(hash.finalize());
         let date = Utc::now().format(AzureMailClient::RFC1123).to_string();
-        let str_to_sign = String::from(format!("POST\n{}\n{};{};{}", path_and_query, date, host, content_hash));
-        let signature = self.compute_signature(str_to_sign.as_str());
+        let str_to_sign = format!("POST\n{}\n{};{};{}", path_and_query, date, host, content_hash);
+        let signature = match self.compute_signature(&str_to_sign) {
+            Ok(s) => s,
+            Err(e) => return Err(Error::msg(e.to_string()))
+        };
         let auth = format!("HMAC-SHA256 SignedHeaders=x-ms-date;host;x-ms-content-sha256&Signature={}", signature);
         let guid = uuid::Uuid::new_v4().to_string();
 
@@ -111,25 +127,38 @@ impl AzureMailClient {
             .header("Repeatability-First-Sent", &date)
             .header("Content-Type", "application/json")
             .body(body)
-            .send()
-            .unwrap();
+            .send();
+
+        if let Err(e) = res {
+            return Err(Error::msg(e.to_string()));
+        }
+
+        let res = res.unwrap();
 
         info!("Send Status: {}", res.status());
-        debug!("Response: {}", res.text().unwrap());
+
+        match res.text() {
+            Ok(txt) => debug!("Response: {}", txt),
+            Err(_) => error!("Unable to get response text")
+        };
+
+        Ok(())
     }
 
-    fn compute_signature(&self, data: &str) -> String {
+    fn compute_signature(&self, data: &String) -> Result<String> {
         let e = GeneralPurpose::new(&alphabet::STANDARD, GeneralPurposeConfig::new());
-        let k = e.decode(self.access_key.clone()).unwrap();
+        let k = match e.decode(&self.access_key) {
+            Ok(k) => k,
+            Err(e) => return Err(Error::msg(e.to_string()))
+        };
 
         let mut hmac = HMAC::new(k);
-        let data = data.as_bytes();
 
-        hmac.update(data);
+        hmac.update(data.as_bytes());
         
         let signature = hmac.finalize();
 
-        e.encode(signature)
+        Ok(e.encode(signature))
     }
 
 }

@@ -3,78 +3,74 @@ use std::collections::HashMap;
 use mailparse::{parse_mail, ParsedMail};
 use log::trace;
 
-pub struct AzureMailConverter {}
+pub fn from_mime(sender_address: String, to: &Vec<String>, data: &String) -> AzureMailMessage {
+    let mail = parse_mail(data.as_bytes()).unwrap();
 
-impl AzureMailConverter {
+    let headers: HashMap<String, String> = mail.headers
+        .iter()
+        .map(|h| (h.get_key(), h.get_value()))
+        .collect();
 
-    pub fn from_mime(sender_address: String, to: Vec<String>, data: &String) -> AzureMailMessage {
+    let recipients = AzureMailRecipients {
+        to: to.iter().map(|r| AzureMailAddress::new(r.to_string())).collect(),
+        cc: Option::None,
+        bcc: Option::None
+    };
 
-        let mail = parse_mail(data.as_bytes()).unwrap();
+    let subject = match headers.get("Subject") {
+        Some(s) => s.clone(),
+        None => "".to_string()
+    };
 
-        let headers: HashMap<String, String> = mail.headers
-            .iter()
-            .map(|h| (h.get_key(), h.get_value()))
-            .collect();
+    let html = get_content(&mail, &"text/html".to_string());
+    let plain_text = get_content(&mail, &"text/plain".to_string());
 
-        let recipients = AzureMailRecipients {
-            to: to.iter().map(|r| AzureMailAddress::new(r.to_string())).collect(),
-            cc: Option::None,
-            bcc: Option::None
-        };
+    trace!("HTML: {}", html);
+    trace!("Plain Text: {}", plain_text);
 
-        let subject = headers.get("Subject").unwrap_or(&String::from("")).to_string();
-        let html = AzureMailConverter::get_content(&mail, &"text/html".to_string());
-        let plain_text = AzureMailConverter::get_content(&mail, &"text/plain".to_string());
+    let html = match html.is_empty() {
+        true => Option::None,
+        false => Option::Some(html)
+    };
 
-        trace!("HTML: {}", html);
-        trace!("Plain Text: {}", plain_text);
+    let plain_text = match plain_text.is_empty() {
+        true => Option::None,
+        false => Option::Some(plain_text)
+    };
 
-        let html = match html.len() {
-            0 => Option::None,
-            _ => Option::Some(html)
-        };
+    let msg = AzureMailMessage {
+        sender_address,
+        reply_to: Option::None,
+        headers: Option::Some(headers),
+        recipients,
+        content: AzureMailContent {
+            subject,
+            plain_text,
+            html
+        }
+    };
 
-        let plain_text = match plain_text.len() {
-            0 => Option::None,
-            _ => Option::Some(plain_text)
-        };
+    trace!("Mail message: {:#?}", msg);
 
-        let msg = AzureMailMessage {
-            sender_address,
-            reply_to: Option::None,
-            headers: Option::Some(headers),
-            recipients,
-            content: AzureMailContent {
-                subject,
-                plain_text,
-                html
-            }
-        };
+    msg
+}
 
-        trace!("Mail message: {:#?}", msg);
+fn get_content(mail: &ParsedMail, mimetype: &String) -> String {
+    let body = mail.get_body().unwrap_or("".to_string());
 
-        msg
+    if mail.ctype.mimetype.eq(mimetype) && body.len() != 0 {
+        return body;
+    } else {
+        if mail.subparts.len() > 0 {
+            for pm in mail.subparts.iter() {
+                let body = get_content(pm, mimetype);
 
-    }
-
-    fn get_content(mail: &ParsedMail, mimetype: &String) -> String {
-        let body = mail.get_body().unwrap_or("".to_string());
-
-        if mail.ctype.mimetype.eq(mimetype) && body.len() != 0 {
-            return body;
-        } else {
-            if mail.subparts.len() > 0 {
-                for pm in mail.subparts.iter() {
-                    let body = AzureMailConverter::get_content(pm, mimetype);
-
-                    if body.len() != 0 {
-                        return body;
-                    }
+                if body.len() != 0 {
+                    return body;
                 }
             }
         }
-
-        "".to_string()
     }
 
+    "".to_string()
 }
