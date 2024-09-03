@@ -4,7 +4,7 @@ Application written in Rust that listens for SMTP clients, reads e-mails and the
 The server is inspired by the work done by [Piotr Sarna](https://blog.turso.tech/write-your-own-email-server-in-rust-36f4ff5b1956).
 
 ```
-Usage: simple-smtp-relay.exe [OPTIONS] --endpoint <ACS_ENDPOINT> --access-key <ACS_ACCESS_KEY>
+Usage: simple-smtp-relay [OPTIONS] --endpoint <ACS_ENDPOINT> --access-key <ACS_ACCESS_KEY>
 
 Options:
   -a, --address <IP:PORT>            Address to bind to (defaults to 127.0.0.1:25)
@@ -15,6 +15,19 @@ Options:
   -h, --help                         Print help
   -V, --version                      Print version
 ```
+
+# Installation
+
+You need to install a Rust toolchain with `cargo`. Please refer to [Install Rust](https://www.rust-lang.org/tools/install) for up-to-date instructions for your platform.
+
+Once you have `cargo` up and running, execute the following command:
+
+```bash
+$ sudo cargo install --git https://github.com/andyolivares/simple-smtp-relay.git --root /usr/local
+```
+
+This will download, build and install `simple-smtp-relay` to `/usr/local`.
+
 # Example `systemd` Daemon Configuration File
 
 ```

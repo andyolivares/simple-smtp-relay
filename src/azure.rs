@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use anyhow::{Error, Result};
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, log_enabled, Level};
+use reqwest::header::{HeaderMap, HeaderValue};
 use url::{Position, Url};
 use serde::Serialize;
 use base64::{Engine, alphabet};
@@ -118,27 +119,35 @@ impl AzureMailClient {
         let guid = uuid::Uuid::new_v4().to_string();
 
         let client = Client::new();
-        let res = client
-            .post(url.to_string())
-            .header("Authorization", auth)
-            .header("x-ms-date", &date)
-            .header("x-ms-content-sha256", content_hash)
-            .header("Repeatability-Request-Id", guid)
-            .header("Repeatability-First-Sent", &date)
-            .header("Content-Type", "application/json")
-            .body(body)
-            .send();
+        let mut headers = HeaderMap::new();
 
-        if let Err(e) = res {
-            return Err(Error::msg(e.to_string()));
+        headers.append("Authorization", HeaderValue::from_str(&auth)?);
+        headers.append("x-ms-date", HeaderValue::from_str(&date)?);
+        headers.append("x-ms-content-sha256", HeaderValue::from_str(&content_hash)?);
+        headers.append("Repeatability-Request-Id", HeaderValue::from_str(&guid)?);
+        headers.append("Repeatability-First-Sent", HeaderValue::from_str(&date)?);
+        headers.append("Content-Type", HeaderValue::from_str("application/json")?);
+
+        if log_enabled!(Level::Trace) {
+            for (key, value) in headers.iter() {
+                trace!("{}: {:?}", key, value);
+            }
         }
 
-        let res = res.unwrap();
+        let req = client
+            .post(url.to_string())
+            .headers(headers)
+            .body(body);
 
-        info!("Send Status: {}", res.status());
+        let res = match req.send() {
+            Ok(res) => res,
+            Err(e) => return Err(Error::msg(e.to_string()))
+        };
+
+        info!("Response Status: {}", res.status());
 
         match res.text() {
-            Ok(txt) => debug!("Response: {}", txt),
+            Ok(txt) => debug!("Response Text: {}", txt),
             Err(_) => error!("Unable to get response text")
         };
 
