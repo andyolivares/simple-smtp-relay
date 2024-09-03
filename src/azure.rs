@@ -102,6 +102,8 @@ impl AzureMailClient {
 
         trace!("URL: {}", url);
         trace!("Content: {}", body);
+        trace!("Endpoint: {}", self.endpoint);
+        trace!("Access Key: {}", self.access_key);
 
         let e = GeneralPurpose::new(&alphabet::STANDARD, GeneralPurposeConfig::new());
         let mut hash = Hash::new();
