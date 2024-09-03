@@ -100,25 +100,31 @@ impl AzureMailClient {
             Err(e) => return Err(Error::msg(e.to_string()))
         };
 
+        let date = Utc::now().format(AzureMailClient::RFC1123).to_string();
+
         trace!("URL: {}", url);
         trace!("Host: {}", host);
         trace!("Path & Query: {}", path_and_query);
         trace!("Body: {}", body);
         trace!("Endpoint: {}", self.endpoint);
         trace!("Access Key: {}", self.access_key);
+        trace!("Date: {}", date);
 
         let e = GeneralPurpose::new(&alphabet::STANDARD, GeneralPurposeConfig::new());
         let mut hash = Hash::new();
         
         hash.update(body.as_bytes());
 
-        let content_hash = e.encode(hash.finalize());
-        let date = Utc::now().format(AzureMailClient::RFC1123).to_string();
+        let content_hash = e.encode(hash.finalize());        
         let str_to_sign = format!("POST\n{}\n{};{};{}", path_and_query, date, host, content_hash);
+
+        trace!("String to Sign: {}", str_to_sign);
+
         let signature = match self.compute_signature(&str_to_sign) {
             Ok(s) => s,
             Err(e) => return Err(Error::msg(e.to_string()))
         };
+        
         let auth = format!("HMAC-SHA256 SignedHeaders=x-ms-date;host;x-ms-content-sha256&Signature={}", signature);
         let guid = uuid::Uuid::new_v4().to_string();
 
